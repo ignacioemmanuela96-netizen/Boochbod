@@ -317,7 +317,7 @@ export default function GridPage() {
     let mediaUrl: string | undefined
     if (newPostFile) {
       setUploading(true)
-      try { mediaUrl = await uploadFile(newPostFile, `post_${id}_media`) } catch {}
+      try { mediaUrl = await uploadFile(newPostFile, `post_${id}_media`) } catch (err) { alert('Upload failed: ' + (err as Error).message) }
       setUploading(false)
     }
     const p: Post = {
@@ -349,7 +349,7 @@ export default function GridPage() {
       } else {
         setEditPost(p => p ? { ...p, coverUrl: url } : p)
       }
-    } catch {}
+    } catch (err) { alert('Upload failed: ' + (err as Error).message) }
     setUploading(false)
   }
 
