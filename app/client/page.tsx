@@ -16,6 +16,8 @@ interface Post {
   day: string; week: number; theme: string; platform: string; format: string
   pillar: string; mediaType: 'image' | 'video'; mediaUrl?: string; coverUrl?: string
   hide: boolean; position: number; status: string
+  approval: 'pending' | 'approved' | 'rejected'
+  approvalNote?: string
 }
 
 // ─── Color palettes ───────────────────────────────────────────────────────────
@@ -46,26 +48,26 @@ const DEFAULT_PROFILE: Profile = {
 }
 
 const SEED: Post[] = [
-  { id:1, title:"You're Not Alone", hook:"I was bloated after every meal for 3 years. 45 days of BoochBod — I haven't been bloated since week 2.", caption:'', date:'Jun 16', day:'Mon', week:1, theme:"You're Not Alone", platform:'TikTok', format:'Face-to-cam UGC', pillar:'P3 Social Proof', mediaType:'video', hide:false, position:1, status:'Idea' },
-  { id:2, title:'Your Gut Is Talking', hook:"Your gut is talking. Here's what it's saying.", caption:'', date:'Jun 17', day:'Tue', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:2, status:'Idea' },
-  { id:3, title:'Gut Health Girlie', hook:'This is what a gut health girlie looks like.', caption:'', date:'Jun 18', day:'Wed', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Static', pillar:'P2 Identity & Lifestyle', mediaType:'image', hide:false, position:3, status:'Idea' },
-  { id:4, title:'Cancel Plans No More', hook:"I used to cancel plans because of my gut. I don't anymore.", caption:'', date:'Jun 19', day:'Thu', week:1, theme:"You're Not Alone", platform:'TikTok', format:'Reel', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:4, status:'Idea' },
-  { id:5, title:'Morning Routine Breakdown', hook:'How I take my BoochBod: my morning routine breakdown.', caption:'', date:'Jun 20', day:'Fri', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Carousel', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:5, status:'Idea' },
-  { id:6, title:'One Gummy Changed Everything', hook:'One gummy with breakfast changed everything.', caption:'', date:'Jun 23', day:'Mon', week:2, theme:'Small Habits Big Results', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P5 Product in Action', mediaType:'video', hide:false, position:6, status:'Idea' },
-  { id:7, title:'5 Foods Destroying Your Gut', hook:'5 foods that are secretly destroying your gut.', caption:'', date:'Jun 24', day:'Tue', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:7, status:'Idea' },
-  { id:8, title:'2,847 Women Fixed Bloat', hook:'2,847 women said this fixed their bloat.', caption:'', date:'Jun 25', day:'Wed', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Static', pillar:'P3 Social Proof', mediaType:'image', hide:false, position:8, status:'Idea' },
-  { id:9, title:'Day in My Life', hook:'Day in my life as someone who actually takes care of their gut.', caption:'', date:'Jun 26', day:'Thu', week:2, theme:'Small Habits Big Results', platform:'TikTok', format:'Duet / Stitch', pillar:'P2 Identity & Lifestyle', mediaType:'video', hide:false, position:9, status:'Idea' },
-  { id:10, title:'Before vs. After 30 Days', hook:'Before BoochBod vs. after: a 30-day diary.', caption:'', date:'Jun 27', day:'Fri', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Carousel', pillar:'P4 Emotional Storytelling', mediaType:'image', hide:false, position:10, status:'Idea' },
-  { id:11, title:'The Identity Shift', hook:"I stopped identifying as 'the bloated one' and this is what happened.", caption:'', date:'Jun 30', day:'Mon', week:3, theme:'The Identity Shift', platform:'TikTok', format:'Reel', pillar:'P2 Identity & Lifestyle', mediaType:'video', hide:false, position:11, status:'Idea' },
-  { id:12, title:'Gut-Brain Connection', hook:"The gut-brain connection nobody talks about.", caption:'', date:'Jul 1', day:'Tue', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:12, status:'Idea' },
-  { id:13, title:'BoochBod Starter Kit', hook:'Your BoochBod starter kit.', caption:'', date:'Jul 2', day:'Wed', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Static', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:13, status:'Idea' },
-  { id:14, title:'Dressing Room Moment', hook:'I cried in a dressing room because I felt so good in my body.', caption:'', date:'Jul 3', day:'Thu', week:3, theme:'The Identity Shift', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:14, status:'Idea' },
-  { id:15, title:'60-Day Transformation', hook:"She tried BoochBod for 60 days. Here's what happened.", caption:'', date:'Jul 4', day:'Fri', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Carousel', pillar:'P3 Social Proof', mediaType:'image', hide:false, position:15, status:'Idea' },
-  { id:16, title:'Doctor Reacts', hook:'Doctor reacts to BoochBod ingredients.', caption:'', date:'Jul 7', day:'Mon', week:4, theme:'Proof + Push', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P3 Social Proof', mediaType:'video', hide:false, position:16, status:'Idea' },
-  { id:17, title:'Gummies Work Better', hook:'Why probiotics in gummy form actually work better.', caption:'', date:'Jul 8', day:'Tue', week:4, theme:'Proof + Push', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:17, status:'Idea' },
-  { id:18, title:'3PM Energy Crash', hook:'The 3pm energy crash is not normal.', caption:'', date:'Jul 9', day:'Wed', week:4, theme:'Proof + Push', platform:'Instagram', format:'Static', pillar:'P2 Identity & Lifestyle', mediaType:'image', hide:false, position:18, status:'Idea' },
-  { id:19, title:"Mom's Gut Health Journey", hook:'My mom started taking BoochBod and now we talk about gut health at dinner.', caption:'', date:'Jul 10', day:'Thu', week:4, theme:'Proof + Push', platform:'TikTok', format:'Duet / Stitch', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:19, status:'Idea' },
-  { id:20, title:'4-Week Gut Reset', hook:'Your 4-week gut reset plan. Starting now.', caption:'', date:'Jul 11', day:'Fri', week:4, theme:'Proof + Push', platform:'Instagram', format:'Carousel', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:20, status:'Idea' },
+  { id:1, title:"You're Not Alone", hook:"I was bloated after every meal for 3 years. 45 days of BoochBod — I haven't been bloated since week 2.", caption:'', date:'Jun 16', day:'Mon', week:1, theme:"You're Not Alone", platform:'TikTok', format:'Face-to-cam UGC', pillar:'P3 Social Proof', mediaType:'video', hide:false, position:1, status:'Idea', approval:'pending' as const },
+  { id:2, title:'Your Gut Is Talking', hook:"Your gut is talking. Here's what it's saying.", caption:'', date:'Jun 17', day:'Tue', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:2, status:'Idea', approval:'pending' as const },
+  { id:3, title:'Gut Health Girlie', hook:'This is what a gut health girlie looks like.', caption:'', date:'Jun 18', day:'Wed', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Static', pillar:'P2 Identity & Lifestyle', mediaType:'image', hide:false, position:3, status:'Idea', approval:'pending' as const },
+  { id:4, title:'Cancel Plans No More', hook:"I used to cancel plans because of my gut. I don't anymore.", caption:'', date:'Jun 19', day:'Thu', week:1, theme:"You're Not Alone", platform:'TikTok', format:'Reel', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:4, status:'Idea', approval:'pending' as const },
+  { id:5, title:'Morning Routine Breakdown', hook:'How I take my BoochBod: my morning routine breakdown.', caption:'', date:'Jun 20', day:'Fri', week:1, theme:"You're Not Alone", platform:'Instagram', format:'Carousel', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:5, status:'Idea', approval:'pending' as const },
+  { id:6, title:'One Gummy Changed Everything', hook:'One gummy with breakfast changed everything.', caption:'', date:'Jun 23', day:'Mon', week:2, theme:'Small Habits Big Results', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P5 Product in Action', mediaType:'video', hide:false, position:6, status:'Idea', approval:'pending' as const },
+  { id:7, title:'5 Foods Destroying Your Gut', hook:'5 foods that are secretly destroying your gut.', caption:'', date:'Jun 24', day:'Tue', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:7, status:'Idea', approval:'pending' as const },
+  { id:8, title:'2,847 Women Fixed Bloat', hook:'2,847 women said this fixed their bloat.', caption:'', date:'Jun 25', day:'Wed', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Static', pillar:'P3 Social Proof', mediaType:'image', hide:false, position:8, status:'Idea', approval:'pending' as const },
+  { id:9, title:'Day in My Life', hook:'Day in my life as someone who actually takes care of their gut.', caption:'', date:'Jun 26', day:'Thu', week:2, theme:'Small Habits Big Results', platform:'TikTok', format:'Duet / Stitch', pillar:'P2 Identity & Lifestyle', mediaType:'video', hide:false, position:9, status:'Idea', approval:'pending' as const },
+  { id:10, title:'Before vs. After 30 Days', hook:'Before BoochBod vs. after: a 30-day diary.', caption:'', date:'Jun 27', day:'Fri', week:2, theme:'Small Habits Big Results', platform:'Instagram', format:'Carousel', pillar:'P4 Emotional Storytelling', mediaType:'image', hide:false, position:10, status:'Idea', approval:'pending' as const },
+  { id:11, title:'The Identity Shift', hook:"I stopped identifying as 'the bloated one' and this is what happened.", caption:'', date:'Jun 30', day:'Mon', week:3, theme:'The Identity Shift', platform:'TikTok', format:'Reel', pillar:'P2 Identity & Lifestyle', mediaType:'video', hide:false, position:11, status:'Idea', approval:'pending' as const },
+  { id:12, title:'Gut-Brain Connection', hook:"The gut-brain connection nobody talks about.", caption:'', date:'Jul 1', day:'Tue', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:12, status:'Idea', approval:'pending' as const },
+  { id:13, title:'BoochBod Starter Kit', hook:'Your BoochBod starter kit.', caption:'', date:'Jul 2', day:'Wed', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Static', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:13, status:'Idea', approval:'pending' as const },
+  { id:14, title:'Dressing Room Moment', hook:'I cried in a dressing room because I felt so good in my body.', caption:'', date:'Jul 3', day:'Thu', week:3, theme:'The Identity Shift', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:14, status:'Idea', approval:'pending' as const },
+  { id:15, title:'60-Day Transformation', hook:"She tried BoochBod for 60 days. Here's what happened.", caption:'', date:'Jul 4', day:'Fri', week:3, theme:'The Identity Shift', platform:'Instagram', format:'Carousel', pillar:'P3 Social Proof', mediaType:'image', hide:false, position:15, status:'Idea', approval:'pending' as const },
+  { id:16, title:'Doctor Reacts', hook:'Doctor reacts to BoochBod ingredients.', caption:'', date:'Jul 7', day:'Mon', week:4, theme:'Proof + Push', platform:'TikTok', format:'Face-to-cam UGC', pillar:'P3 Social Proof', mediaType:'video', hide:false, position:16, status:'Idea', approval:'pending' as const },
+  { id:17, title:'Gummies Work Better', hook:'Why probiotics in gummy form actually work better.', caption:'', date:'Jul 8', day:'Tue', week:4, theme:'Proof + Push', platform:'Instagram', format:'Carousel', pillar:'P1 Gut Education', mediaType:'image', hide:false, position:17, status:'Idea', approval:'pending' as const },
+  { id:18, title:'3PM Energy Crash', hook:'The 3pm energy crash is not normal.', caption:'', date:'Jul 9', day:'Wed', week:4, theme:'Proof + Push', platform:'Instagram', format:'Static', pillar:'P2 Identity & Lifestyle', mediaType:'image', hide:false, position:18, status:'Idea', approval:'pending' as const },
+  { id:19, title:"Mom's Gut Health Journey", hook:'My mom started taking BoochBod and now we talk about gut health at dinner.', caption:'', date:'Jul 10', day:'Thu', week:4, theme:'Proof + Push', platform:'TikTok', format:'Duet / Stitch', pillar:'P4 Emotional Storytelling', mediaType:'video', hide:false, position:19, status:'Idea', approval:'pending' as const },
+  { id:20, title:'4-Week Gut Reset', hook:'Your 4-week gut reset plan. Starting now.', caption:'', date:'Jul 11', day:'Fri', week:4, theme:'Proof + Push', platform:'Instagram', format:'Carousel', pillar:'P5 Product in Action', mediaType:'image', hide:false, position:20, status:'Idea', approval:'pending' as const },
 ]
 
 const STATUSES = ['Idea','In Progress','For Approval','Approved','Scheduled','Posted']
@@ -151,7 +153,8 @@ export default function GridPage() {
       const res = await fetch('/api/sync')
       const { data } = await res.json()
       if (data?.posts && data?.order) {
-        setPosts(data.posts)
+        const migratedPosts = data.posts.map((p: Post) => ({ ...p, approval: (p.approval || 'pending') as Post['approval'] }))
+        setPosts(migratedPosts)
         setOrder(data.order)
         setProfile(data.profile || DEFAULT_PROFILE)
         nextId.current = Math.max(...data.posts.map((p: Post) => p.id)) + 1
@@ -169,7 +172,7 @@ export default function GridPage() {
     const ps = localStorage.getItem(lsPosts)
     const or = localStorage.getItem(lsOrder)
     const pr = localStorage.getItem(lsProfile)
-    const loadedPosts = ps ? JSON.parse(ps) : SEED
+    const loadedPosts = (ps ? JSON.parse(ps) : SEED).map((p: Post) => ({ ...p, approval: (p.approval || 'pending') as Post['approval'] }))
     const loadedOrder = or ? JSON.parse(or) : loadedPosts.map((p: Post) => p.id)
     const loadedProfile = pr ? JSON.parse(pr) : DEFAULT_PROFILE
     setPosts(loadedPosts)
@@ -282,7 +285,7 @@ export default function GridPage() {
       date: base.date || '', day: base.day || '', week: base.week || 1, theme: base.theme || '',
       platform: base.platform || 'Instagram', format: base.format || 'Static',
       pillar: base.pillar || 'P1 Gut Education', mediaType: base.mediaType || 'image',
-      mediaUrl, hide: false, position: posts.length + 1, status: base.status || 'To Film',
+      mediaUrl, hide: false, position: posts.length + 1, status: base.status || 'To Film', approval: 'pending',
     }
     const newPosts = [...posts, p]
     const newOrder = [...order, id]
@@ -408,6 +411,22 @@ export default function GridPage() {
         </div>
       </div>
 
+      {/* ── Approval summary bar ── */}
+      {(() => {
+        const approved = orderedPosts.filter(p=>p.approval==='approved').length
+        const rejected = orderedPosts.filter(p=>p.approval==='rejected').length
+        const pending = orderedPosts.filter(p=>p.approval==='pending').length
+        return (
+          <div style={{ background:'#111', borderBottom:'1px solid #222', padding:'8px 16px', maxWidth:480, margin:'0 auto', display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
+            <span style={{ fontSize:12, color:'#4ade80', fontWeight:600 }}>✓ {approved} approved</span>
+            <span style={{ color:'#333' }}>·</span>
+            <span style={{ fontSize:12, color:'#f87171', fontWeight:600 }}>✕ {rejected} needs changes</span>
+            <span style={{ color:'#333' }}>·</span>
+            <span style={{ fontSize:12, color:'#888', fontWeight:600 }}>○ {pending} pending</span>
+          </div>
+        )
+      })()}
+
       {/* ── Instagram Profile ── */}
       <div style={{ background:'#000', padding:'20px 16px 0', maxWidth:480, margin:'0 auto' }}>
         <div style={{ display:'flex', alignItems:'center', gap:24, padding:'0 4px 16px' }}>
@@ -471,6 +490,13 @@ export default function GridPage() {
                 </div>
                 {post.mediaType==='video' && mediaSrc && !coverSrc && <div style={{ position:'absolute', top:4, right:5, color:'#fff', fontSize:14, textShadow:'0 1px 3px rgba(0,0,0,0.8)' }}>▶</div>}
                 {post.hide && <div style={{ position:'absolute', top:4, left:4, fontSize:9, color:'#fff', background:'rgba(0,0,0,0.6)', padding:'1px 4px', borderRadius:4 }}>hidden</div>}
+                {/* Approval badge */}
+                {post.approval === 'approved' && (
+                  <div style={{ position:'absolute', bottom:5, right:5, width:20, height:20, borderRadius:'50%', background:'#16a34a', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, boxShadow:'0 1px 4px rgba(0,0,0,0.5)' }}>✓</div>
+                )}
+                {post.approval === 'rejected' && (
+                  <div style={{ position:'absolute', bottom:5, right:5, width:20, height:20, borderRadius:'50%', background:'#dc2626', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, boxShadow:'0 1px 4px rgba(0,0,0,0.5)' }}>✕</div>
+                )}
               </div>
             )
           })}
@@ -557,6 +583,44 @@ export default function GridPage() {
             <input type="checkbox" checked={editPost.hide} onChange={e=>setEditPost(p=>p?{...p,hide:e.target.checked}:p)} />
             Hide from grid (still editable)
           </label>
+
+          {/* ── Approval ── */}
+          <div style={{ borderTop:'1px solid #333', paddingTop:16, marginBottom:16 }}>
+            <div className="fl" style={{ marginBottom:10 }}>Client Approval</div>
+            <div style={{ display:'flex', gap:8, marginBottom:editPost.approval==='rejected'?10:0 }}>
+              <button
+                onClick={()=>setEditPost(p=>p?{...p, approval: p.approval==='approved'?'pending':'approved', approvalNote:''}:p)}
+                style={{ flex:1, padding:'10px', borderRadius:10, border:'2px solid '+(editPost.approval==='approved'?'#16a34a':'#333'), background:editPost.approval==='approved'?'rgba(22,163,74,0.15)':'#2a2a2a', color:editPost.approval==='approved'?'#4ade80':'#888', cursor:'pointer', fontSize:13, fontWeight:700, transition:'all 0.15s' }}
+              >✓ Approved</button>
+              <button
+                onClick={()=>setEditPost(p=>p?{...p, approval: p.approval==='rejected'?'pending':'rejected'}:p)}
+                style={{ flex:1, padding:'10px', borderRadius:10, border:'2px solid '+(editPost.approval==='rejected'?'#dc2626':'#333'), background:editPost.approval==='rejected'?'rgba(220,38,38,0.15)':'#2a2a2a', color:editPost.approval==='rejected'?'#f87171':'#888', cursor:'pointer', fontSize:13, fontWeight:700, transition:'all 0.15s' }}
+              >✕ Changes Needed</button>
+            </div>
+            {editPost.approval==='rejected' && (
+              <div>
+                <div className="fl" style={{ marginTop:10 }}>Feedback / Notes</div>
+                <textarea
+                  className="fi"
+                  rows={3}
+                  placeholder="What needs to change? (optional)"
+                  value={editPost.approvalNote||''}
+                  onChange={e=>setEditPost(p=>p?{...p,approvalNote:e.target.value}:p)}
+                  style={{ resize:'vertical' }}
+                />
+              </div>
+            )}
+            {editPost.approval==='approved' && (
+              <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(22,163,74,0.1)', borderRadius:8, color:'#4ade80', fontSize:12 }}>
+                ✓ This post is approved and ready to go!
+              </div>
+            )}
+            {editPost.approval==='pending' && (
+              <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(255,255,255,0.04)', borderRadius:8, color:'#666', fontSize:12 }}>
+                Awaiting approval — select above to approve or request changes.
+              </div>
+            )}
+          </div>
 
           <button className="btn-p" onClick={saveEdit} disabled={uploading}>{uploading?'Uploading…':'Save Changes'}</button>
           <button className="btn-d" onClick={()=>{ if(confirm('Delete this post?')) deletePost(editPost.id) }}>Delete Post</button>
