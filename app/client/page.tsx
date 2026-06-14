@@ -20,6 +20,33 @@ interface Post {
   approvalNote?: string
 }
 
+// ─── Story Types ─────────────────────────────────────────────────────────────
+interface TextOverlay {
+  id: number; text: string
+  position: 'top' | 'center' | 'bottom'
+  color: string; align: 'left' | 'center' | 'right'; bold: boolean
+}
+interface StorySticker {
+  id: number
+  type: 'poll' | 'question' | 'countdown' | 'link' | 'music' | 'location' | 'mention' | 'hashtag' | 'emoji'
+  question?: string; option1?: string; option2?: string
+  prompt?: string; title?: string; endDate?: string
+  url?: string; linkText?: string; song?: string; artist?: string
+  place?: string; username?: string; tag?: string; emoji?: string
+}
+interface StoryFrame {
+  id: number; mediaUrl?: string; mediaType: 'image' | 'video' | 'color'
+  backgroundColor: string; textOverlays: TextOverlay[]; stickers: StorySticker[]
+  duration: number; status: string; notes: string
+}
+interface StoryHighlight {
+  id: number; name: string; coverEmoji: string; coverColor: string
+  coverImageUrl?: string; frames: StoryFrame[]
+}
+
+const STORY_STATUSES = ['Idea','To Film','Ready','Posted']
+const STORY_BG_COLORS = ['#000000','#1a1a2e','#16213e','#0f3460','#533483','#e94560','#f5a623','#7ed321','#417505','#9b59b6']
+
 // ─── Color palettes ───────────────────────────────────────────────────────────
 const WP = [
   null,
@@ -135,6 +162,18 @@ export default function GridPage() {
   const isFirstLoad = useRef(true)
   const clientKeyRef = useRef<string>('default')
 
+  // ─── Stories state ────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'grid'|'stories'>('grid')
+  const [highlights, setHighlights] = useState<StoryHighlight[]>([])
+  const [selectedHighlight, setSelectedHighlight] = useState<number|null>(null)
+  const [editFrame, setEditFrame] = useState<StoryFrame|null>(null)
+  const [editHighlightMeta, setEditHighlightMeta] = useState<StoryHighlight|null>(null)
+  const [editStickerIdx, setEditStickerIdx] = useState<number|null>(null)
+  const highlightsRef = useRef<StoryHighlight[]>([])
+  const nextStoryId = useRef(1000)
+  const storyFramesSortableRef = useRef<Sortable|null>(null)
+  const storyFramesRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     const isAdmin = document.cookie.includes('bb_admin=1')
     const isClient = document.cookie.match(/bb_client=[^;]+/)
@@ -185,7 +224,10 @@ export default function GridPage() {
         setPosts(migratedPosts)
         setOrder(data.order)
         setProfile(data.profile || DEFAULT_PROFILE)
+        setHighlights(data.highlights || [])
         nextId.current = Math.max(...data.posts.map((p: Post) => p.id)) + 1
+        const allFrameIds = (data.highlights || []).flatMap((h: StoryHighlight) => h.frames.map((f: StoryFrame) => f.id))
+        if (allFrameIds.length) nextStoryId.current = Math.max(...allFrameIds) + 1
         localStorage.setItem(lsPosts, JSON.stringify(data.posts))
         localStorage.setItem(lsOrder, JSON.stringify(data.order))
         localStorage.setItem(lsProfile, JSON.stringify(data.profile || DEFAULT_PROFILE))
@@ -240,17 +282,20 @@ export default function GridPage() {
   }
 
   // ─── Save to cloud ─────────────────────────────────────────────────────────
-  async function saveToCloud(p?: Post[], o?: number[], pr?: Profile) {
+  useEffect(() => { highlightsRef.current = highlights }, [highlights])
+
+  async function saveToCloud(p?: Post[], o?: number[], pr?: Profile, hl?: StoryHighlight[]) {
     const savePosts = p || postsRef.current
     const saveOrder = o || orderRef.current
     const saveProfile = pr || profileRef.current
+    const saveHighlights = hl || highlightsRef.current
     setSyncStatus('saving')
     const syncUrl = getSyncUrl('/api/sync')
     try {
       const res = await fetch(syncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ posts: savePosts, order: saveOrder, profile: saveProfile }),
+        body: JSON.stringify({ posts: savePosts, order: saveOrder, profile: saveProfile, highlights: saveHighlights }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -398,6 +443,114 @@ export default function GridPage() {
     saveToCloud(undefined, undefined, editingProfile)
   }
 
+  // ─── Story handlers ────────────────────────────────────────────────────────
+  function newFrame(): StoryFrame {
+    return { id: nextStoryId.current++, mediaUrl: undefined, mediaType: 'color', backgroundColor: '#000000', textOverlays: [], stickers: [], duration: 7, status: 'Idea', notes: '' }
+  }
+
+  function addHighlight() {
+    const h: StoryHighlight = { id: nextStoryId.current++, name: 'New Highlight', coverEmoji: '⭐', coverColor: '#533483', frames: [] }
+    const updated = [...highlights, h]
+    setHighlights(updated)
+    setSelectedHighlight(h.id)
+    setEditHighlightMeta(h)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function saveHighlightMeta() {
+    if (!editHighlightMeta) return
+    const updated = highlights.map(h => h.id === editHighlightMeta.id ? editHighlightMeta : h)
+    setHighlights(updated); setEditHighlightMeta(null)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function deleteHighlight(id: number) {
+    if (!confirm('Delete this highlight?')) return
+    const updated = highlights.filter(h => h.id !== id)
+    setHighlights(updated)
+    if (selectedHighlight === id) setSelectedHighlight(null)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function addFrameToHighlight(highlightId: number) {
+    const updated = highlights.map(h => h.id === highlightId ? { ...h, frames: [...h.frames, newFrame()] } : h)
+    setHighlights(updated)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function openFrameEdit(frame: StoryFrame) { setEditFrame({ ...frame }); setEditStickerIdx(null) }
+
+  function saveFrameEdit() {
+    if (!editFrame || selectedHighlight === null) return
+    const updated = highlights.map(h => h.id === selectedHighlight
+      ? { ...h, frames: h.frames.map(f => f.id === editFrame.id ? editFrame : f) }
+      : h)
+    setHighlights(updated)
+    setEditFrame(null)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function deleteFrame(frameId: number) {
+    if (!selectedHighlight) return
+    const updated = highlights.map(h => h.id === selectedHighlight
+      ? { ...h, frames: h.frames.filter(f => f.id !== frameId) }
+      : h)
+    setHighlights(updated)
+    setEditFrame(null)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function reorderFrames(newFrames: StoryFrame[]) {
+    const updated = highlights.map(h => h.id === selectedHighlight ? { ...h, frames: newFrames } : h)
+    setHighlights(updated)
+    highlightsRef.current = updated
+    saveToCloud(undefined, undefined, undefined, updated)
+  }
+
+  function addSticker(type: StorySticker['type']) {
+    if (!editFrame) return
+    const s: StorySticker = { id: nextStoryId.current++, type }
+    setEditFrame(f => f ? { ...f, stickers: [...f.stickers, s] } : f)
+    setEditStickerIdx(editFrame.stickers.length)
+  }
+
+  function addTextOverlay() {
+    if (!editFrame) return
+    const t: TextOverlay = { id: nextStoryId.current++, text: '', position: 'center', color: '#ffffff', align: 'center', bold: false }
+    setEditFrame(f => f ? { ...f, textOverlays: [...f.textOverlays, t] } : f)
+  }
+
+  async function handleFrameMediaUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !editFrame) return
+    setUploading(true)
+    try {
+      const url = await uploadFile(file, `story_${editFrame.id}_media`)
+      const mt = file.type.startsWith('video') ? 'video' : 'image'
+      setEditFrame(f => f ? { ...f, mediaUrl: url, mediaType: mt } : f)
+    } catch (err) { alert('Upload failed: ' + (err as Error).message) }
+    setUploading(false)
+  }
+
+  async function handleHighlightCoverUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !editHighlightMeta) return
+    setUploading(true)
+    try {
+      const url = await uploadFile(file, `story_cover_${editHighlightMeta.id}`)
+      setEditHighlightMeta(h => h ? { ...h, coverImageUrl: url } : h)
+    } catch (err) { alert('Upload failed: ' + (err as Error).message) }
+    setUploading(false)
+  }
+
+  const currentHighlight = highlights.find(h => h.id === selectedHighlight) || null
+
   // ─── Ordered posts ─────────────────────────────────────────────────────────
   const postMap = Object.fromEntries(posts.map(p => [p.id, p]))
   const orderedPosts = order.map(id => postMap[id]).filter(Boolean)
@@ -513,14 +666,13 @@ export default function GridPage() {
           ))}
         </div>
         <div style={{ display:'flex', borderTop:'1px solid #333' }}>
-          {['⊞','☰','♡'].map((icon,i)=>(
-            <button key={i} style={{ flex:1, background:'none', border:'none', color:i===0?'#fff':'#666', fontSize:20, padding:'10px 0', cursor:'pointer', borderBottom:i===0?'2px solid #fff':'2px solid transparent' }}>{icon}</button>
-          ))}
+          <button onClick={()=>setActiveTab('grid')} style={{ flex:1, background:'none', border:'none', color:activeTab==='grid'?'#fff':'#666', fontSize:20, padding:'10px 0', cursor:'pointer', borderBottom:activeTab==='grid'?'2px solid #fff':'2px solid transparent' }}>⊞</button>
+          <button onClick={()=>setActiveTab('stories')} style={{ flex:1, background:'none', border:'none', color:activeTab==='stories'?'#fff':'#666', fontSize:20, padding:'10px 0', cursor:'pointer', borderBottom:activeTab==='stories'?'2px solid #fff':'2px solid transparent' }}>📖</button>
         </div>
       </div>
 
       {/* ── Grid ── */}
-      <div style={{ background:'#000', maxWidth:480, margin:'0 auto' }}>
+      {activeTab==='grid' && <div style={{ background:'#000', maxWidth:480, margin:'0 auto' }}>
         <div ref={gridRef} style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:3 }}>
           {orderedPosts.map(post => {
             const w = WP[post.week] || WP[2]!
@@ -556,10 +708,117 @@ export default function GridPage() {
           })}
           <div className="tile-add" onClick={openAdd} style={{ aspectRatio:'1', background:'#111', border:'2px dashed #333', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:28, color:'#444' }}>+</div>
         </div>
-      </div>
+      </div>}
+
+      {/* ── Stories Tab ── */}
+      {activeTab==='stories' && (
+        <div style={{ background:'#000', maxWidth:480, margin:'0 auto', padding:'16px', minHeight:400 }}>
+          {/* Highlight circles row */}
+          <div style={{ display:'flex', gap:12, overflowX:'auto', paddingBottom:12, marginBottom:16 }}>
+            {highlights.map(h => (
+              <div key={h.id} onClick={()=>setSelectedHighlight(h.id === selectedHighlight ? null : h.id)}
+                style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, flexShrink:0, cursor:'pointer' }}>
+                <div style={{
+                  width:60, height:60, borderRadius:'50%', overflow:'hidden',
+                  background: h.coverImageUrl ? undefined : h.coverColor,
+                  border: selectedHighlight===h.id ? '2px solid #C5D93A' : '2px solid #333',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:22,
+                }}>
+                  {h.coverImageUrl
+                    ? <img src={h.coverImageUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                    : h.coverEmoji}
+                </div>
+                <span style={{ color: selectedHighlight===h.id ? '#C5D93A' : '#aaa', fontSize:11, maxWidth:64, textAlign:'center', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.name}</span>
+              </div>
+            ))}
+            <div onClick={addHighlight} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, flexShrink:0, cursor:'pointer' }}>
+              <div style={{ width:60, height:60, borderRadius:'50%', background:'#1a1a1a', border:'2px dashed #444', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, color:'#555' }}>+</div>
+              <span style={{ color:'#555', fontSize:11 }}>New</span>
+            </div>
+          </div>
+
+          {/* Selected highlight */}
+          {currentHighlight && (
+            <div>
+              {/* Highlight header */}
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <span style={{ color:'#fff', fontWeight:700, fontSize:15 }}>{currentHighlight.name}</span>
+                  <span style={{ color:'#888', fontSize:12 }}>{currentHighlight.frames.length} frames</span>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={()=>setEditHighlightMeta({...currentHighlight})} style={{ background:'#2a2a2a', border:'1px solid #444', borderRadius:7, padding:'5px 10px', color:'#ccc', fontSize:12, cursor:'pointer' }}>✏️ Edit</button>
+                  <button onClick={()=>deleteHighlight(currentHighlight.id)} style={{ background:'#2a2a2a', border:'1px solid #444', borderRadius:7, padding:'5px 10px', color:'#f87171', fontSize:12, cursor:'pointer' }}>🗑</button>
+                </div>
+              </div>
+
+              {/* Frames sequence */}
+              <div ref={storyFramesRef} style={{ display:'flex', gap:10, overflowX:'auto', paddingBottom:12 }}>
+                {currentHighlight.frames.map((frame, idx) => (
+                  <div key={frame.id} data-id={frame.id}
+                    onClick={()=>openFrameEdit(frame)}
+                    style={{ flexShrink:0, cursor:'pointer', position:'relative' }}>
+                    {/* 9:16 phone preview */}
+                    <div style={{
+                      width:80, height:142, borderRadius:8, overflow:'hidden',
+                      background: frame.mediaUrl ? '#000' : frame.backgroundColor,
+                      border:'2px solid #333', position:'relative',
+                    }}>
+                      {frame.mediaUrl && frame.mediaType==='image' && <img src={frame.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                      {frame.mediaUrl && frame.mediaType==='video' && <video src={frame.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} muted playsInline preload="metadata" />}
+                      {frame.textOverlays.length > 0 && (
+                        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center', gap:2, padding:4 }}>
+                          {frame.textOverlays.slice(0,2).map(t => (
+                            <div key={t.id} style={{ color:t.color, fontSize:7, fontWeight:t.bold?700:400, textAlign:t.align, lineHeight:1.2, textShadow:'0 1px 2px rgba(0,0,0,0.8)' }}>{t.text.slice(0,30)}</div>
+                          ))}
+                        </div>
+                      )}
+                      {frame.stickers.length > 0 && (
+                        <div style={{ position:'absolute', bottom:4, left:4, display:'flex', gap:2, flexWrap:'wrap' }}>
+                          {frame.stickers.slice(0,3).map(s => (
+                            <span key={s.id} style={{ fontSize:8, background:'rgba(0,0,0,0.6)', borderRadius:3, padding:'1px 3px', color:'#fff' }}>
+                              {s.type==='poll'?'📊':s.type==='question'?'❓':s.type==='countdown'?'⏱':s.type==='link'?'🔗':s.type==='music'?'🎵':s.type==='location'?'📍':s.type==='mention'?'@':s.type==='hashtag'?'#':'😀'}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ textAlign:'center', marginTop:4 }}>
+                      <span style={{ color:'#666', fontSize:10 }}>{idx+1}</span>
+                    </div>
+                    <div style={{ position:'absolute', top:2, right:2, background: frame.status==='Posted'?'#16a34a':frame.status==='Ready'?'#6366f1':frame.status==='To Film'?'#d97706':'#555', borderRadius:'50%', width:12, height:12 }} />
+                  </div>
+                ))}
+                {/* Add frame button */}
+                <div onClick={()=>addFrameToHighlight(currentHighlight.id)}
+                  style={{ flexShrink:0, width:80, height:142, borderRadius:8, border:'2px dashed #333', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', cursor:'pointer', gap:4 }}>
+                  <span style={{ fontSize:24, color:'#444' }}>+</span>
+                  <span style={{ fontSize:9, color:'#555' }}>Add Frame</span>
+                </div>
+              </div>
+
+              {/* Legend */}
+              <div style={{ display:'flex', gap:12, marginTop:8 }}>
+                {[['#555','Idea'],['#d97706','To Film'],['#6366f1','Ready'],['#16a34a','Posted']].map(([c,l])=>(
+                  <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
+                    <div style={{ width:8, height:8, borderRadius:'50%', background:c }} />
+                    <span style={{ color:'#666', fontSize:10 }}>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {highlights.length === 0 && (
+            <div style={{ textAlign:'center', color:'#444', marginTop:60, fontSize:14 }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>📖</div>
+              No highlights yet — tap + to create one
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Panel overlay ── */}
-      {activePanel && <div className="panel-overlay" onClick={()=>setActivePanel(null)} />}
+      {(activePanel || editFrame || editHighlightMeta) && <div className="panel-overlay" onClick={()=>{ setActivePanel(null); setEditFrame(null); setEditHighlightMeta(null) }} />}
 
       {/* ── Edit Post Panel ── */}
       {activePanel==='edit' && editPost && (
@@ -808,6 +1067,254 @@ export default function GridPage() {
               })
             }
           </div>
+        </div>
+      )}
+
+      {/* ── Frame Editor Panel ── */}
+      {editFrame && (
+        <div className="slide-panel" onClick={e=>e.stopPropagation()} style={{ width:480, overflowY:'auto' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <h3 style={{ color:'#fff', margin:0, fontSize:16 }}>Story Frame Editor</h3>
+            <button onClick={()=>setEditFrame(null)} style={{ background:'none', border:'none', color:'#888', fontSize:24, cursor:'pointer', lineHeight:1 }}>×</button>
+          </div>
+
+          {/* 9:16 preview */}
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:16 }}>
+            <div style={{ width:160, height:284, borderRadius:16, overflow:'hidden', background:editFrame.mediaUrl ? '#000' : editFrame.backgroundColor, border:'2px solid #333', position:'relative', flexShrink:0 }}>
+              {editFrame.mediaUrl && editFrame.mediaType==='image' && <img src={editFrame.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+              {editFrame.mediaUrl && editFrame.mediaType==='video' && <video src={editFrame.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} controls playsInline />}
+              {/* Text overlays preview */}
+              {editFrame.textOverlays.map(t=>(
+                <div key={t.id} style={{ position:'absolute', left:0, right:0, padding:'0 8px', ...(t.position==='top'?{top:20}:t.position==='bottom'?{bottom:20}:{top:'50%', transform:'translateY(-50%)'}) }}>
+                  <div style={{ color:t.color, fontSize:11, fontWeight:t.bold?700:400, textAlign:t.align, textShadow:'0 1px 3px rgba(0,0,0,0.8)', lineHeight:1.3 }}>{t.text}</div>
+                </div>
+              ))}
+              {/* Stickers preview */}
+              <div style={{ position:'absolute', bottom:8, left:8, display:'flex', flexWrap:'wrap', gap:3 }}>
+                {editFrame.stickers.map(s=>(
+                  <span key={s.id} style={{ fontSize:14 }}>
+                    {s.type==='poll'?'📊':s.type==='question'?'❓':s.type==='countdown'?'⏱':s.type==='link'?'🔗':s.type==='music'?'🎵':s.type==='location'?'📍':s.type==='mention'?'@':s.type==='hashtag'?'#':s.emoji||'😀'}
+                  </span>
+                ))}
+              </div>
+              {uploading && <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', color:'#C5D93A', fontSize:12 }}>Uploading…</div>}
+            </div>
+          </div>
+
+          {/* Media upload */}
+          <div style={{ marginBottom:16 }}>
+            <div className="fl">Media</div>
+            <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+              <label style={{ flex:1, background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
+                📷/🎬 Upload Image or Video
+                <input type="file" accept="image/*,video/mp4,video/quicktime,.mp4,.mov" style={{ display:'none' }} onChange={handleFrameMediaUpload} />
+              </label>
+              {editFrame.mediaUrl && (
+                <button onClick={()=>setEditFrame(f=>f?{...f,mediaUrl:undefined,mediaType:'color'}:f)} style={{ background:'#2a2a2a', border:'1px solid #f87171', borderRadius:8, padding:'8px', color:'#f87171', fontSize:12, cursor:'pointer' }}>✕ Remove</button>
+              )}
+            </div>
+            {/* Background color (when no media) */}
+            {!editFrame.mediaUrl && (
+              <div>
+                <div className="fl" style={{ marginBottom:6 }}>Background Color</div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {STORY_BG_COLORS.map(c=>(
+                    <div key={c} onClick={()=>setEditFrame(f=>f?{...f,backgroundColor:c}:f)}
+                      style={{ width:28, height:28, borderRadius:6, background:c, cursor:'pointer', border: editFrame.backgroundColor===c?'2px solid #C5D93A':'2px solid #333' }} />
+                  ))}
+                  <input type="color" value={editFrame.backgroundColor} onChange={e=>setEditFrame(f=>f?{...f,backgroundColor:e.target.value}:f)}
+                    style={{ width:28, height:28, borderRadius:6, border:'2px solid #333', cursor:'pointer', padding:0, background:'none' }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Duration (images only) */}
+          {editFrame.mediaType !== 'video' && (
+            <div style={{ marginBottom:16 }}>
+              <div className="fl">Frame Duration</div>
+              <div style={{ display:'flex', gap:6 }}>
+                {[5,7,10,15].map(d=>(
+                  <button key={d} onClick={()=>setEditFrame(f=>f?{...f,duration:d}:f)}
+                    style={{ flex:1, background: editFrame.duration===d?'#C5D93A':'#2a2a2a', color: editFrame.duration===d?'#033F3B':'#ccc', border:'1px solid #444', borderRadius:7, padding:'6px 0', fontSize:12, cursor:'pointer', fontWeight:editFrame.duration===d?700:400 }}>{d}s</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Status */}
+          <div style={{ marginBottom:16 }}>
+            <div className="fl">Status</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {STORY_STATUSES.map(s=>(
+                <button key={s} onClick={()=>setEditFrame(f=>f?{...f,status:s}:f)}
+                  style={{ background: editFrame.status===s?'#C5D93A':'#2a2a2a', color: editFrame.status===s?'#033F3B':'#ccc', border:'1px solid #444', borderRadius:7, padding:'5px 10px', fontSize:12, cursor:'pointer', fontWeight:editFrame.status===s?700:400 }}>{s}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div style={{ marginBottom:16 }}>
+            <div className="fl">Notes / Description</div>
+            <textarea className="fi" value={editFrame.notes} onChange={e=>setEditFrame(f=>f?{...f,notes:e.target.value}:f)} rows={2} style={{ resize:'vertical' }} placeholder="Content notes, captions, direction…" />
+          </div>
+
+          {/* Text Overlays */}
+          <div style={{ marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div className="fl" style={{ margin:0 }}>Text Overlays</div>
+              <button onClick={addTextOverlay} style={{ background:'#2a2a2a', border:'1px solid #444', borderRadius:6, padding:'3px 8px', color:'#C5D93A', fontSize:11, cursor:'pointer' }}>+ Add Text</button>
+            </div>
+            {editFrame.textOverlays.map((t,i)=>(
+              <div key={t.id} style={{ background:'#2a2a2a', borderRadius:8, padding:10, marginBottom:8 }}>
+                <input className="fi" value={t.text} onChange={e=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.map((x,j)=>j===i?{...x,text:e.target.value}:x)}:f)} placeholder="Text…" style={{ marginBottom:6 }} />
+                <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                  <select value={t.position} onChange={e=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.map((x,j)=>j===i?{...x,position:e.target.value as TextOverlay['position']}:x)}:f)} style={{ background:'#1a1a1a', border:'1px solid #444', borderRadius:6, color:'#ccc', fontSize:11, padding:'3px 6px' }}>
+                    <option value="top">Top</option>
+                    <option value="center">Center</option>
+                    <option value="bottom">Bottom</option>
+                  </select>
+                  <select value={t.align} onChange={e=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.map((x,j)=>j===i?{...x,align:e.target.value as TextOverlay['align']}:x)}:f)} style={{ background:'#1a1a1a', border:'1px solid #444', borderRadius:6, color:'#ccc', fontSize:11, padding:'3px 6px' }}>
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                  <button onClick={()=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.map((x,j)=>j===i?{...x,bold:!x.bold}:x)}:f)} style={{ background: t.bold?'#C5D93A':'#1a1a1a', color: t.bold?'#033F3B':'#ccc', border:'1px solid #444', borderRadius:6, padding:'3px 7px', fontSize:11, cursor:'pointer', fontWeight:700 }}>B</button>
+                  <input type="color" value={t.color} onChange={e=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.map((x,j)=>j===i?{...x,color:e.target.value}:x)}:f)} style={{ width:24, height:24, borderRadius:4, border:'1px solid #444', cursor:'pointer', padding:0 }} />
+                  <button onClick={()=>setEditFrame(f=>f?{...f,textOverlays:f.textOverlays.filter((_,j)=>j!==i)}:f)} style={{ background:'none', border:'none', color:'#f87171', fontSize:14, cursor:'pointer', marginLeft:'auto' }}>✕</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Stickers */}
+          <div style={{ marginBottom:16 }}>
+            <div className="fl" style={{ marginBottom:8 }}>Stickers</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+              {([['poll','📊 Poll'],['question','❓ Question'],['countdown','⏱ Countdown'],['link','🔗 Link'],['music','🎵 Music'],['location','📍 Location'],['mention','@ Mention'],['hashtag','# Hashtag'],['emoji','😀 Emoji']] as [StorySticker['type'],string][]).map(([type,label])=>(
+                <button key={type} onClick={()=>addSticker(type)} style={{ background:'#2a2a2a', border:'1px solid #444', borderRadius:20, padding:'4px 10px', color:'#ccc', fontSize:11, cursor:'pointer' }}>{label}</button>
+              ))}
+            </div>
+            {editFrame.stickers.map((s,i)=>(
+              <div key={s.id} style={{ background:'#2a2a2a', borderRadius:8, padding:10, marginBottom:8 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                  <span style={{ color:'#C5D93A', fontSize:12, fontWeight:600, textTransform:'capitalize' }}>
+                    {s.type==='poll'?'📊':s.type==='question'?'❓':s.type==='countdown'?'⏱':s.type==='link'?'🔗':s.type==='music'?'🎵':s.type==='location'?'📍':s.type==='mention'?'@':s.type==='hashtag'?'#':'😀'} {s.type}
+                  </span>
+                  <button onClick={()=>setEditFrame(f=>f?{...f,stickers:f.stickers.filter((_,j)=>j!==i)}:f)} style={{ background:'none', border:'none', color:'#f87171', fontSize:12, cursor:'pointer' }}>✕</button>
+                </div>
+                {s.type==='poll' && <>
+                  <input className="fi" value={s.question||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,question:e.target.value}:x)}:f)} placeholder="Question" style={{ marginBottom:4 }} />
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+                    <input className="fi" value={s.option1||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,option1:e.target.value}:x)}:f)} placeholder="Option 1" />
+                    <input className="fi" value={s.option2||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,option2:e.target.value}:x)}:f)} placeholder="Option 2" />
+                  </div>
+                </>}
+                {s.type==='question' && <input className="fi" value={s.prompt||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,prompt:e.target.value}:x)}:f)} placeholder="Ask me anything…" />}
+                {s.type==='countdown' && <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+                  <input className="fi" value={s.title||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,title:e.target.value}:x)}:f)} placeholder="Title" />
+                  <input className="fi" type="datetime-local" value={s.endDate||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,endDate:e.target.value}:x)}:f)} />
+                </div>}
+                {s.type==='link' && <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+                  <input className="fi" value={s.url||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,url:e.target.value}:x)}:f)} placeholder="https://…" />
+                  <input className="fi" value={s.linkText||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,linkText:e.target.value}:x)}:f)} placeholder="Link text" />
+                </div>}
+                {s.type==='music' && <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:4 }}>
+                  <input className="fi" value={s.song||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,song:e.target.value}:x)}:f)} placeholder="Song title" />
+                  <input className="fi" value={s.artist||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,artist:e.target.value}:x)}:f)} placeholder="Artist" />
+                </div>}
+                {s.type==='location' && <input className="fi" value={s.place||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,place:e.target.value}:x)}:f)} placeholder="Place name" />}
+                {s.type==='mention' && <input className="fi" value={s.username||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,username:e.target.value}:x)}:f)} placeholder="@username" />}
+                {s.type==='hashtag' && <input className="fi" value={s.tag||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,tag:e.target.value}:x)}:f)} placeholder="#hashtag" />}
+                {s.type==='emoji' && <input className="fi" value={s.emoji||''} onChange={e=>setEditFrame(f=>f?{...f,stickers:f.stickers.map((x,j)=>j===i?{...x,emoji:e.target.value}:x)}:f)} placeholder="😀" style={{ fontSize:20 }} />}
+              </div>
+            ))}
+          </div>
+
+          {/* Sequence reorder */}
+          {currentHighlight && currentHighlight.frames.length > 1 && (
+            <div style={{ marginBottom:16 }}>
+              <div className="fl" style={{ marginBottom:8 }}>Sequence — drag to reorder</div>
+              <div style={{ display:'flex', gap:6, overflowX:'auto', paddingBottom:4 }}>
+                {currentHighlight.frames.map((f,i)=>(
+                  <div key={f.id}
+                    draggable
+                    onDragStart={e=>e.dataTransfer.setData('frameId', String(f.id))}
+                    onDragOver={e=>e.preventDefault()}
+                    onDrop={e=>{
+                      const dragId = Number(e.dataTransfer.getData('frameId'))
+                      if (dragId===f.id) return
+                      const frames = currentHighlight.frames
+                      const from = frames.findIndex(x=>x.id===dragId)
+                      const to = frames.findIndex(x=>x.id===f.id)
+                      const reordered = [...frames]
+                      const [moved] = reordered.splice(from,1)
+                      reordered.splice(to,0,moved)
+                      reorderFrames(reordered)
+                      if (editFrame.id===moved.id) setEditFrame({...moved})
+                    }}
+                    style={{ flexShrink:0, width:44, height:78, borderRadius:6, overflow:'hidden', background:f.mediaUrl?'#000':f.backgroundColor, border: f.id===editFrame.id?'2px solid #C5D93A':'2px solid #333', cursor:'grab', position:'relative' }}>
+                    {f.mediaUrl && f.mediaType==='image' && <img src={f.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />}
+                    {f.mediaUrl && f.mediaType==='video' && <video src={f.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} muted playsInline preload="metadata" />}
+                    <div style={{ position:'absolute', bottom:2, left:0, right:0, textAlign:'center', color:'#fff', fontSize:8, textShadow:'0 1px 2px #000' }}>{i+1}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button className="btn-p" onClick={saveFrameEdit} disabled={uploading}>💾 Save Frame</button>
+          <button className="btn-d" onClick={()=>deleteFrame(editFrame.id)}>Delete Frame</button>
+          <button className="btn-g" onClick={()=>setEditFrame(null)}>Cancel</button>
+        </div>
+      )}
+
+      {/* ── Highlight Meta Editor Panel ── */}
+      {editHighlightMeta && (
+        <div className="slide-panel" onClick={e=>e.stopPropagation()}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+            <h3 style={{ color:'#fff', margin:0, fontSize:16 }}>Edit Highlight</h3>
+            <button onClick={()=>setEditHighlightMeta(null)} style={{ background:'none', border:'none', color:'#888', fontSize:24, cursor:'pointer', lineHeight:1 }}>×</button>
+          </div>
+
+          {/* Cover preview */}
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}>
+            <div style={{ width:90, height:90, borderRadius:'50%', overflow:'hidden', background: editHighlightMeta.coverImageUrl ? undefined : editHighlightMeta.coverColor, border:'3px solid #333', display:'flex', alignItems:'center', justifyContent:'center', fontSize:36 }}>
+              {editHighlightMeta.coverImageUrl ? <img src={editHighlightMeta.coverImageUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : editHighlightMeta.coverEmoji}
+            </div>
+          </div>
+
+          <F label="Highlight Name" value={editHighlightMeta.name} onChange={v=>setEditHighlightMeta(h=>h?{...h,name:v}:h)} />
+
+          <div style={{ marginBottom:12 }}>
+            <div className="fl">Cover Emoji</div>
+            <input className="fi" value={editHighlightMeta.coverEmoji} onChange={e=>setEditHighlightMeta(h=>h?{...h,coverEmoji:e.target.value}:h)} placeholder="⭐" style={{ fontSize:20 }} />
+          </div>
+
+          <div style={{ marginBottom:12 }}>
+            <div className="fl" style={{ marginBottom:6 }}>Cover Color</div>
+            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+              {STORY_BG_COLORS.map(c=>(
+                <div key={c} onClick={()=>setEditHighlightMeta(h=>h?{...h,coverColor:c}:h)}
+                  style={{ width:28, height:28, borderRadius:'50%', background:c, cursor:'pointer', border: editHighlightMeta.coverColor===c?'2px solid #C5D93A':'2px solid #333' }} />
+              ))}
+              <input type="color" value={editHighlightMeta.coverColor} onChange={e=>setEditHighlightMeta(h=>h?{...h,coverColor:e.target.value}:h)} style={{ width:28, height:28, borderRadius:'50%', border:'2px solid #333', cursor:'pointer', padding:0 }} />
+            </div>
+          </div>
+
+          <div style={{ marginBottom:16 }}>
+            <div className="fl">Cover Image (optional)</div>
+            <label style={{ display:'block', background:'#2a2a2a', border:'1px dashed #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
+              📷 Upload Cover Image
+              <input type="file" accept="image/*" style={{ display:'none' }} onChange={handleHighlightCoverUpload} />
+            </label>
+            {editHighlightMeta.coverImageUrl && (
+              <button onClick={()=>setEditHighlightMeta(h=>h?{...h,coverImageUrl:undefined}:h)} style={{ marginTop:6, background:'none', border:'none', color:'#f87171', fontSize:12, cursor:'pointer' }}>✕ Remove cover image</button>
+            )}
+          </div>
+
+          <button className="btn-p" onClick={saveHighlightMeta} disabled={uploading}>Save Highlight</button>
+          <button className="btn-g" onClick={()=>setEditHighlightMeta(null)}>Cancel</button>
         </div>
       )}
     </div>
