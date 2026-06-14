@@ -1,4 +1,4 @@
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
+import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -8,24 +8,6 @@ const ALLOWED_TYPES = [
 ]
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const body = (await req.json()) as HandleUploadBody
-
-  // blob.upload-completed is a server-to-server callback from Vercel Blob — no user cookies.
-  // Let handleUpload verify it internally; do NOT auth-check this branch.
-  if ((body as { type?: string }).type === 'blob.upload-completed') {
-    try {
-      const json = await handleUpload({
-        body, request: req,
-        onBeforeGenerateToken: async () => ({ allowedContentTypes: ALLOWED_TYPES }),
-        onUploadCompleted: async () => {},
-      })
-      return NextResponse.json(json)
-    } catch (err) {
-      return NextResponse.json({ error: (err as Error).message }, { status: 400 })
-    }
-  }
-
-  // Token generation — requires a logged-in session
   const jar = await cookies()
   const authed =
     jar.get('bb_admin')?.value === '1' ||
@@ -37,13 +19,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const json = await handleUpload({
-      body, request: req,
-      onBeforeGenerateToken: async () => ({ allowedContentTypes: ALLOWED_TYPES }),
-      onUploadCompleted: async () => {},
+    const body = await req.json() as { type?: string; payload?: { pathname?: string; multipart?: boolean } }
+
+    if (body.type !== 'blob.generate-client-token') {
+      // blob.upload-completed callback — no-op, return 200
+      return NextResponse.json({ ok: true })
+    }
+
+    const pathname = body.payload?.pathname
+    if (!pathname) {
+      return NextResponse.json({ error: 'Missing pathname' }, { status: 400 })
+    }
+
+    const ext = pathname.split('.').pop()?.toLowerCase() || ''
+    const typeMap: Record<string, string> = {
+      mov: 'video/quicktime', mp4: 'video/mp4', m4v: 'video/x-m4v',
+      jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+      gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+    }
+    const contentType = typeMap[ext] || 'application/octet-stream'
+
+    if (!ALLOWED_TYPES.includes(contentType)) {
+      return NextResponse.json({ error: 'File type not allowed' }, { status: 400 })
+    }
+
+    const clientToken = await generateClientTokenFromReadWriteToken({
+      pathname,
+      allowedContentTypes: ALLOWED_TYPES,
+      multipart: body.payload?.multipart ?? false,
     })
-    return NextResponse.json(json)
+
+    return NextResponse.json({ clientToken })
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 })
+    console.error('[upload] error:', err)
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
 }
