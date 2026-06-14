@@ -572,14 +572,15 @@ export default function GridPage() {
           {/* Media preview + controls */}
           <div style={{ marginBottom:16 }}>
             <div style={{ background:'#111', borderRadius:10, overflow:'hidden', aspectRatio:'1', marginBottom:8, position:'relative' }}>
-              {editPost.coverUrl
-                ? <img src={editPost.coverUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
-                : editPost.mediaType==='video' && editPost.mediaUrl
+              {editPost.mediaType==='video' && editPost.mediaUrl
                 ? <video src={editPost.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} controls playsInline />
                 : editPost.mediaUrl
                 ? <img src={editPost.mediaUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
                 : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', color:'#555', fontSize:13 }}>No media yet</div>
               }
+              {editPost.coverUrl && editPost.mediaType==='video' && (
+                <div style={{ position:'absolute', bottom:8, left:8, fontSize:10, color:'#fff', background:'rgba(0,0,0,0.6)', padding:'2px 6px', borderRadius:4 }}>Cover image set — grid shows cover, video plays here</div>
+              )}
               {uploading && (
                 <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', color:'#C5D93A', fontSize:14 }}>Uploading…</div>
               )}
