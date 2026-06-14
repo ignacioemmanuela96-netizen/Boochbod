@@ -101,11 +101,16 @@ export default function GridPage() {
   const [newPostPreview, setNewPostPreview] = useState<string|null>(null)
   const [syncStatus, setSyncStatus] = useState<'idle'|'saving'|'loading'|'saved'|'error'>('idle')
   const [uploading, setUploading] = useState(false)
+  const [showBackups, setShowBackups] = useState(false)
+  const [backups, setBackups] = useState<{url:string;uploadedAt:string;pathname:string}[]>([])
   const gridRef = useRef<HTMLDivElement>(null)
   const sortableRef = useRef<Sortable|null>(null)
   const nextId = useRef(21)
   const orderRef = useRef<number[]>([])
   const postsRef = useRef<Post[]>([])
+  const profileRef = useRef<Profile>(DEFAULT_PROFILE)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
+  const isFirstLoad = useRef(true)
 
   useEffect(() => {
     const isAdmin = document.cookie.includes('bb_admin=1')
@@ -119,6 +124,17 @@ export default function GridPage() {
   // Keep refs in sync for use inside sortable callback
   useEffect(() => { orderRef.current = order }, [order])
   useEffect(() => { postsRef.current = posts }, [posts])
+  useEffect(() => { profileRef.current = profile }, [profile])
+
+  // Auto-save 3 seconds after any change to posts, order, or profile
+  useEffect(() => {
+    if (!ready || isFirstLoad.current) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      saveToCloud(postsRef.current, orderRef.current, profileRef.current)
+    }, 3000)
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
+  }, [posts, order, profile, ready])
 
   // ─── Load: cloud first, localStorage fallback ──────────────────────────────
   async function loadData() {
@@ -144,6 +160,7 @@ export default function GridPage() {
         localStorage.setItem(lsProfile, JSON.stringify(data.profile || DEFAULT_PROFILE))
         setSyncStatus('idle')
         setReady(true)
+        setTimeout(() => { isFirstLoad.current = false }, 100)
         return
       }
     } catch {}
@@ -161,6 +178,28 @@ export default function GridPage() {
     nextId.current = Math.max(...loadedPosts.map((p: Post) => p.id)) + 1
     setSyncStatus('idle')
     setReady(true)
+    setTimeout(() => { isFirstLoad.current = false }, 100)
+  }
+
+  async function loadBackups() {
+    const res = await fetch('/api/sync?backups=1')
+    const { backups: b } = await res.json()
+    setBackups(b || [])
+    setShowBackups(true)
+  }
+
+  async function restoreBackup(url: string) {
+    if (!confirm('Restore this backup? Current data will be backed up first.')) return
+    const res = await fetch(url)
+    const data = await res.json()
+    await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    setPosts(data.posts); setOrder(data.order); setProfile(data.profile || DEFAULT_PROFILE)
+    setShowBackups(false)
+    setSyncStatus('saved'); setTimeout(() => setSyncStatus('idle'), 2500)
   }
 
   // ─── Save to cloud ─────────────────────────────────────────────────────────
@@ -323,7 +362,7 @@ export default function GridPage() {
     </div>
   )
 
-  const syncLabel = syncStatus === 'saving' ? '⏳ Saving…' : syncStatus === 'loading' ? '⏳ Loading…' : syncStatus === 'saved' ? '✅ Saved!' : syncStatus === 'error' ? '❌ Error' : '☁️ Save to Cloud'
+  const syncLabel = syncStatus === 'saving' ? '⏳ Auto-saving…' : syncStatus === 'loading' ? '⏳ Loading…' : syncStatus === 'saved' ? '✅ Saved!' : syncStatus === 'error' ? '❌ Error' : '☁️ Saved'
 
   return (
     <div style={{ minHeight:'100vh', background:'#1a1a1a', fontFamily:"'Inter', sans-serif" }}>
@@ -354,8 +393,12 @@ export default function GridPage() {
           <span style={{ color:'#C5D93A', fontWeight:800, fontSize:16 }}>{profile.displayName || 'Grid Preview'}</span>
           <span style={{ color:'#7DB82A', fontSize:12 }}>Grid Preview</span>
         </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button onClick={() => saveToCloud()} disabled={syncStatus==='saving'||syncStatus==='loading'} style={{ background: syncStatus==='saved'?'#7DB82A':syncStatus==='error'?'#e53e3e':'#1a5c57', color:'#C5D93A', border:'1px solid #7DB82A', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, fontWeight:600, transition:'all 0.2s' }}>{syncLabel}</button>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+          {/* Auto-save status indicator */}
+          <div style={{ fontSize:11, color: syncStatus==='saved'?'#7DB82A': syncStatus==='saving'?'#C5D93A': syncStatus==='error'?'#f87171':'#4a7a50', display:'flex', alignItems:'center', gap:4, padding:'4px 8px', background:'rgba(0,0,0,0.2)', borderRadius:6, transition:'color 0.3s' }}>
+            {syncStatus==='saving' ? '⏳' : syncStatus==='saved' ? '✅' : syncStatus==='error' ? '❌' : '☁️'} {syncLabel}
+          </div>
+          <button onClick={loadBackups} style={{ background:'transparent', color:'#7DB82A', border:'1px solid #2a5a2a', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12 }} title="View backups">🕐 Backups</button>
           <button onClick={openAdd} style={{ background:'#C5D93A', color:'#033F3B', border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, cursor:'pointer', fontSize:13 }}>+ Add Post</button>
           <button onClick={openProfileEdit} style={{ background:'transparent', color:'#C5D93A', border:'1px solid #7DB82A', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:13 }}>Edit Profile</button>
           {isAdminPreview
@@ -616,6 +659,36 @@ export default function GridPage() {
 
           <button className="btn-p" onClick={saveProfileEdit}>Save Profile</button>
           <button className="btn-g" onClick={()=>setActivePanel(null)}>Cancel</button>
+        </div>
+      )}
+
+      {/* ── Backups modal ── */}
+      {showBackups && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.75)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }} onClick={()=>setShowBackups(false)}>
+          <div style={{ background:'#1e1e1e', border:'1px solid #333', borderRadius:16, padding:24, width:'100%', maxWidth:480, maxHeight:'80vh', overflowY:'auto' }} onClick={e=>e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <h3 style={{ color:'#fff', margin:'0 0 4px', fontSize:16 }}>🕐 Backups</h3>
+                <p style={{ color:'#666', fontSize:12, margin:0 }}>Auto-saved before every change. Last {backups.length} backups shown.</p>
+              </div>
+              <button onClick={()=>setShowBackups(false)} style={{ background:'none', border:'none', color:'#888', fontSize:22, cursor:'pointer', lineHeight:1 }}>×</button>
+            </div>
+            {backups.length === 0
+              ? <p style={{ color:'#555', textAlign:'center', padding:'20px 0' }}>No backups yet — they appear after your first save.</p>
+              : backups.map((b, i) => {
+                const d = new Date(b.uploadedAt)
+                const label = d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' at ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})
+                return (
+                  <div key={b.url} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderBottom:'1px solid #2a2a2a' }}>
+                    <div>
+                      <div style={{ color:'#ccc', fontSize:14 }}>{i === 0 ? '⭐ Most Recent — ' : ''}{label}</div>
+                    </div>
+                    <button onClick={()=>restoreBackup(b.url)} style={{ background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'6px 12px', color:'#C5D93A', fontSize:12, cursor:'pointer', fontWeight:600, flexShrink:0 }}>Restore</button>
+                  </div>
+                )
+              })
+            }
+          </div>
         </div>
       )}
     </div>
