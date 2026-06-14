@@ -46,7 +46,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const clientToken = await generateClientTokenFromReadWriteToken({
       pathname,
       allowedContentTypes: ALLOWED_TYPES,
-      multipart: body.payload?.multipart ?? false,
     })
 
     return NextResponse.json({ clientToken })
