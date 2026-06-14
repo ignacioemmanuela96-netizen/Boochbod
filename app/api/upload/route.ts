@@ -4,7 +4,10 @@ import { cookies } from 'next/headers'
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const jar = await cookies()
-  if (jar.get('bb_admin')?.value !== '1') {
+  const isAdmin = jar.get('bb_admin')?.value === '1'
+  const isClient = !!jar.get('bb_client')?.value
+  const isPreview = !!jar.get('bb_preview_client')?.value
+  if (!isAdmin && !isClient && !isPreview) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
