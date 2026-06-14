@@ -397,10 +397,20 @@ export default function GridPage() {
           <span style={{ color:'#7DB82A', fontSize:12 }}>Grid Preview</span>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
-          {/* Auto-save status indicator */}
-          <div style={{ fontSize:11, color: syncStatus==='saved'?'#7DB82A': syncStatus==='saving'?'#C5D93A': syncStatus==='error'?'#f87171':'#4a7a50', display:'flex', alignItems:'center', gap:4, padding:'4px 8px', background:'rgba(0,0,0,0.2)', borderRadius:6, transition:'color 0.3s' }}>
-            {syncStatus==='saving' ? '⏳' : syncStatus==='saved' ? '✅' : syncStatus==='error' ? '❌' : '☁️'} {syncLabel}
-          </div>
+          {/* Save to Cloud button */}
+          <button
+            onClick={() => saveToCloud()}
+            disabled={syncStatus==='saving'||syncStatus==='loading'}
+            style={{
+              background: syncStatus==='saved' ? '#1a4a1a' : syncStatus==='error' ? '#4a1a1a' : '#C5D93A',
+              color: syncStatus==='saved' ? '#4ade80' : syncStatus==='error' ? '#f87171' : '#033F3B',
+              border: syncStatus==='saved' ? '1px solid #4ade80' : syncStatus==='error' ? '1px solid #f87171' : 'none',
+              borderRadius: 8, padding:'6px 14px', fontWeight:700, cursor: syncStatus==='saving'||syncStatus==='loading' ? 'not-allowed' : 'pointer',
+              fontSize:13, opacity: syncStatus==='saving'||syncStatus==='loading' ? 0.6 : 1, transition:'all 0.2s',
+            }}
+          >
+            {syncStatus==='saving' ? '⏳ Saving…' : syncStatus==='loading' ? '⏳ Loading…' : syncStatus==='saved' ? '✅ Saved!' : syncStatus==='error' ? '❌ Error' : '☁️ Save to Cloud'}
+          </button>
           <button onClick={loadBackups} style={{ background:'transparent', color:'#7DB82A', border:'1px solid #2a5a2a', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12 }} title="View backups">🕐 Backups</button>
           <button onClick={openAdd} style={{ background:'#C5D93A', color:'#033F3B', border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, cursor:'pointer', fontSize:13 }}>+ Add Post</button>
           <button onClick={openProfileEdit} style={{ background:'transparent', color:'#C5D93A', border:'1px solid #7DB82A', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:13 }}>Edit Profile</button>
