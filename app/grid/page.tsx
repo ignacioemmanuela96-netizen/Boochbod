@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Sortable from 'sortablejs'
+import { upload } from '@vercel/blob/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Highlight { emoji: string; label: string; bg: string; isBB?: boolean }
@@ -73,15 +74,15 @@ const FORMATS = ['Static','Carousel','Reel','Story','Face-to-cam UGC','Duet / St
 const PILLARS = ['P1 Gut Education','P2 Identity & Lifestyle','P3 Social Proof','P4 Emotional Storytelling','P5 Product in Action']
 const STATUS_COLORS: Record<string,string> = { 'To Film':'#666', Filmed:'#4A90D9', Editing:'#E07B2F', Scheduled:'#A855C8', Posted:'#7DB82A' }
 
-// ─── Upload file to cloud ─────────────────────────────────────────────────────
+// ─── Upload file directly to Vercel Blob (no size limit) ─────────────────────
 async function uploadFile(file: File, key: string): Promise<string> {
-  const fd = new FormData()
-  fd.append('file', file)
-  fd.append('key', key)
-  const res = await fetch('/api/upload', { method: 'POST', body: fd })
-  if (!res.ok) throw new Error('Upload failed')
-  const { url } = await res.json()
-  return url
+  const ext = file.name.split('.').pop() || ''
+  const pathname = `media/${key}.${ext}`
+  const blob = await upload(pathname, file, {
+    access: 'public',
+    handleUploadUrl: '/api/upload',
+  })
+  return blob.url
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -448,7 +449,7 @@ export default function GridPage() {
             <div style={{ display:'flex', gap:8, marginBottom:8 }}>
               <label style={{ flex:1, background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
                 {editPost.mediaType==='video'?'🎬':'📷'} Upload {editPost.mediaType==='video'?'Video':'Image'}
-                <input type="file" accept="image/*,.mp4,.mov,video/mp4,video/quicktime" style={{ display:'none' }} onChange={e=>handleEditFile(e,'media')} />
+                <input type="file" accept="image/*,video/mp4,video/quicktime,.mp4,.mov" style={{ display:'none' }} onChange={e=>handleEditFile(e,'media')} />
               </label>
               <label style={{ flex:1, background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
                 🖼 Cover Image
@@ -525,7 +526,7 @@ export default function GridPage() {
             }
             <label style={{ display:'block', background:'#2a2a2a', border:'2px dashed #444', borderRadius:10, padding:'20px', cursor:'pointer', color:'#ccc', fontSize:13, textAlign:'center' }}>
               📷 / 🎬 Click to upload image or video (MP4 / MOV)
-              <input type="file" accept="image/*,.mp4,.mov,video/mp4,video/quicktime" style={{ display:'none' }} onChange={handleNewFile} />
+              <input type="file" accept="image/*,video/mp4,video/quicktime,.mp4,.mov" style={{ display:'none' }} onChange={handleNewFile} />
             </label>
           </div>
 

@@ -1,25 +1,27 @@
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { put } from '@vercel/blob'
 import { cookies } from 'next/headers'
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const jar = await cookies()
   if (jar.get('bb_admin')?.value !== '1') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const form = await req.formData()
-  const file = form.get('file') as File
-  const key = form.get('key') as string
+  const body = (await req.json()) as HandleUploadBody
 
-  if (!file || !key) return NextResponse.json({ error: 'Missing file or key' }, { status: 400 })
-
-  const bytes = await file.arrayBuffer()
-  const blob = await put(`media/${key}`, bytes, {
-    access: 'public',
-    contentType: file.type,
-    addRandomSuffix: false,
-  })
-
-  return NextResponse.json({ url: blob.url })
+  try {
+    const jsonResponse = await handleUpload({
+      body,
+      request: req,
+      onBeforeGenerateToken: async (pathname) => ({
+        allowedContentTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'video/mp4', 'video/quicktime'],
+        tokenPayload: JSON.stringify({ pathname }),
+      }),
+      onUploadCompleted: async () => {},
+    })
+    return NextResponse.json(jsonResponse)
+  } catch (error) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 400 })
+  }
 }
