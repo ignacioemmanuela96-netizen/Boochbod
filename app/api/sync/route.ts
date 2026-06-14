@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
         access: 'public',
         contentType: 'application/json',
         addRandomSuffix: false,
+        allowOverwrite: true,
       })
 
       // Prune old backups
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
     access: 'public',
     contentType: 'application/json',
     addRandomSuffix: false,
+    allowOverwrite: true,
   })
 
   return NextResponse.json({ ok: true, url: blob.url })
