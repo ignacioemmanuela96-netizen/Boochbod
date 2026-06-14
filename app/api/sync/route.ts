@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { put, head, del } from '@vercel/blob'
+import { put, del } from '@vercel/blob'
 import { cookies } from 'next/headers'
 
-async function checkAuth() {
+const BASE_URL = 'https://cbqvalz1fhbqsxye.public.blob.vercel-storage.com'
+
+async function getClientId(): Promise<string | null> {
   const jar = await cookies()
-  return jar.get('bb_admin')?.value === '1'
+  if (jar.get('bb_admin')?.value === '1') {
+    // Admin can sync any client's data by passing ?clientId=
+    return null
+  }
+  return jar.get('bb_client')?.value || null
 }
 
-// GET — load cloud data
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const jar = await cookies()
+  const isAdmin = jar.get('bb_admin')?.value === '1'
+  const previewClient = jar.get('bb_preview_client')?.value
+  const clientId = isAdmin
+    ? (req.nextUrl.searchParams.get('clientId') || previewClient || 'boochbod')
+    : jar.get('bb_client')?.value
+
+  if (!clientId) return NextResponse.json({ data: null })
+
   try {
-    const res = await fetch(
-      `https://cbqvalz1fhbqsxye.public.blob.vercel-storage.com/boochbod-data.json?t=${Date.now()}`,
-      { cache: 'no-store' }
-    )
+    const res = await fetch(`${BASE_URL}/client_${clientId}/data.json?t=${Date.now()}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ data: null })
     const data = await res.json()
     return NextResponse.json({ data })
@@ -22,17 +33,20 @@ export async function GET() {
   }
 }
 
-// POST — save cloud data (auth required)
 export async function POST(req: NextRequest) {
-  if (!(await checkAuth())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const jar = await cookies()
+  const isAdmin = jar.get('bb_admin')?.value === '1'
+  const clientId = isAdmin
+    ? (req.nextUrl.searchParams.get('clientId') || null)
+    : jar.get('bb_client')?.value
+
+  if (!clientId) return NextResponse.json({ error: 'No client' }, { status: 400 })
+
   const body = await req.json()
+  const path = `client_${clientId}/data.json`
 
-  // Delete old blob first so we can overwrite with same path
-  try {
-    await del('boochbod-data.json')
-  } catch {}
-
-  const blob = await put('boochbod-data.json', JSON.stringify(body), {
+  try { await del(path) } catch {}
+  const blob = await put(path, JSON.stringify(body), {
     access: 'public',
     contentType: 'application/json',
     addRandomSuffix: false,

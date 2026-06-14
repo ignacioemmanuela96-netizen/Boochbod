@@ -89,6 +89,7 @@ async function uploadFile(file: File, key: string): Promise<string> {
 export default function GridPage() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
+  const [isAdminPreview, setIsAdminPreview] = useState(false)
   const [posts, setPosts] = useState<Post[]>([])
   const [order, setOrder] = useState<number[]>([])
   const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE)
@@ -107,7 +108,11 @@ export default function GridPage() {
   const postsRef = useRef<Post[]>([])
 
   useEffect(() => {
-    if (!document.cookie.includes('bb_admin=1')) { router.replace('/'); return }
+    const isAdmin = document.cookie.includes('bb_admin=1')
+    const isClient = document.cookie.match(/bb_client=[^;]+/)
+    const isPreview = document.cookie.match(/bb_preview_client=[^;]+/)
+    if (!isAdmin && !isClient && !isPreview) { router.replace('/'); return }
+    if (isAdmin) setIsAdminPreview(true)
     loadData()
   }, [])
 
@@ -118,6 +123,14 @@ export default function GridPage() {
   // ─── Load: cloud first, localStorage fallback ──────────────────────────────
   async function loadData() {
     setSyncStatus('loading')
+    // Determine client key for localStorage namespacing
+    const clientMatch = document.cookie.match(/bb_client=([^;]+)/)
+    const previewMatch = document.cookie.match(/bb_preview_client=([^;]+)/)
+    const clientKey = clientMatch?.[1] || previewMatch?.[1] || 'default'
+    const lsPosts = `bb_posts_${clientKey}`
+    const lsOrder = `bb_order_${clientKey}`
+    const lsProfile = `bb_profile_${clientKey}`
+
     try {
       const res = await fetch('/api/sync')
       const { data } = await res.json()
@@ -126,10 +139,9 @@ export default function GridPage() {
         setOrder(data.order)
         setProfile(data.profile || DEFAULT_PROFILE)
         nextId.current = Math.max(...data.posts.map((p: Post) => p.id)) + 1
-        // Cache locally
-        localStorage.setItem('bb_posts_v4', JSON.stringify(data.posts))
-        localStorage.setItem('bb_order_v4', JSON.stringify(data.order))
-        localStorage.setItem('bb_profile_v1', JSON.stringify(data.profile || DEFAULT_PROFILE))
+        localStorage.setItem(lsPosts, JSON.stringify(data.posts))
+        localStorage.setItem(lsOrder, JSON.stringify(data.order))
+        localStorage.setItem(lsProfile, JSON.stringify(data.profile || DEFAULT_PROFILE))
         setSyncStatus('idle')
         setReady(true)
         return
@@ -137,9 +149,9 @@ export default function GridPage() {
     } catch {}
 
     // Fall back to localStorage
-    const ps = localStorage.getItem('bb_posts_v4')
-    const or = localStorage.getItem('bb_order_v4')
-    const pr = localStorage.getItem('bb_profile_v1')
+    const ps = localStorage.getItem(lsPosts)
+    const or = localStorage.getItem(lsOrder)
+    const pr = localStorage.getItem(lsProfile)
     const loadedPosts = ps ? JSON.parse(ps) : SEED
     const loadedOrder = or ? JSON.parse(or) : loadedPosts.map((p: Post) => p.id)
     const loadedProfile = pr ? JSON.parse(pr) : DEFAULT_PROFILE
@@ -339,14 +351,17 @@ export default function GridPage() {
       <div style={{ background:'#033F3B', borderBottom:'1px solid #0a5a54', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:50, gap:8, flexWrap:'wrap' }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ width:32, height:32, background:'linear-gradient(135deg,#7DB82A,#C5D93A)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>🍵</div>
-          <span style={{ color:'#C5D93A', fontWeight:800, fontSize:16 }}>BoochBod</span>
+          <span style={{ color:'#C5D93A', fontWeight:800, fontSize:16 }}>{profile.displayName || 'Grid Preview'}</span>
           <span style={{ color:'#7DB82A', fontSize:12 }}>Grid Preview</span>
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button onClick={() => saveToCloud()} disabled={syncStatus==='saving'||syncStatus==='loading'} style={{ background: syncStatus==='saved'?'#7DB82A':syncStatus==='error'?'#e53e3e':'#1a5c57', color:'#C5D93A', border:'1px solid #7DB82A', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:12, fontWeight:600, transition:'all 0.2s' }}>{syncLabel}</button>
           <button onClick={openAdd} style={{ background:'#C5D93A', color:'#033F3B', border:'none', borderRadius:8, padding:'6px 14px', fontWeight:700, cursor:'pointer', fontSize:13 }}>+ Add Post</button>
           <button onClick={openProfileEdit} style={{ background:'transparent', color:'#C5D93A', border:'1px solid #7DB82A', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:13 }}>Edit Profile</button>
-          <button onClick={logout} style={{ background:'transparent', color:'#888', border:'1px solid #444', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:13 }}>Log Out</button>
+          {isAdminPreview
+            ? <button onClick={()=>router.replace('/admin')} style={{ background:'linear-gradient(135deg,#6366f1,#8b5cf6)', color:'#fff', border:'none', borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:13, fontWeight:700 }}>← Back to Admin</button>
+            : <button onClick={logout} style={{ background:'transparent', color:'#888', border:'1px solid #444', borderRadius:8, padding:'6px 12px', cursor:'pointer', fontSize:13 }}>Log Out</button>
+          }
         </div>
       </div>
 
