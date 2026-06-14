@@ -5,11 +5,9 @@ import Sortable from 'sortablejs'
 import { upload } from '@vercel/blob/client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-interface Highlight { emoji: string; label: string; bg: string; isBB?: boolean }
 interface Profile {
   username: string; displayName: string; bio: string; link: string
   followers: string; following: string; avatarUrl?: string
-  highlights: Highlight[]
 }
 interface Post {
   id: number; title: string; hook: string; caption: string; date: string
@@ -65,14 +63,15 @@ const DEFAULT_PROFILE: Profile = {
   username: 'boochbod', displayName: 'BoochBod',
   bio: 'probiotic kombucha gummy 🍵\ngut health for women who want to feel themselves again',
   link: 'linkinbio.boochbod.com', followers: '14.2K', following: '312',
-  highlights: [
-    { emoji: 'BB', label: 'About Us', bg: '#033F3B', isBB: true },
-    { emoji: '✨', label: 'Results', bg: '#FFB4DB' },
-    { emoji: '🧬', label: 'Gut Facts', bg: '#C5D93A' },
-    { emoji: '⭐', label: 'Reviews', bg: '#ffd700' },
-    { emoji: '🍬', label: 'Product', bg: '#033F3B' },
-  ]
 }
+
+const DEFAULT_HIGHLIGHTS: StoryHighlight[] = [
+  { id: 1, name: 'About Us',  coverEmoji: 'BB', coverColor: '#033F3B', frames: [] },
+  { id: 2, name: 'Results',   coverEmoji: '✨', coverColor: '#FFB4DB', frames: [] },
+  { id: 3, name: 'Gut Facts', coverEmoji: '🧬', coverColor: '#C5D93A', frames: [] },
+  { id: 4, name: 'Reviews',   coverEmoji: '⭐', coverColor: '#ffd700', frames: [] },
+  { id: 5, name: 'Product',   coverEmoji: '🍬', coverColor: '#033F3B', frames: [] },
+]
 
 const SEED: Post[] = [
   { id:1, title:"You're Not Alone", hook:"I was bloated after every meal for 3 years. 45 days of BoochBod — I haven't been bloated since week 2.", caption:'', date:'Jun 16', day:'Mon', week:1, theme:"You're Not Alone", platform:'TikTok', format:'Face-to-cam UGC', pillar:'P3 Social Proof', mediaType:'video', hide:false, position:1, status:'Idea', approval:'pending' as const },
@@ -224,10 +223,11 @@ export default function GridPage() {
         setPosts(migratedPosts)
         setOrder(data.order)
         setProfile(data.profile || DEFAULT_PROFILE)
-        setHighlights(data.highlights || [])
+        const loadedHighlights = data.highlights?.length ? data.highlights : DEFAULT_HIGHLIGHTS
+        setHighlights(loadedHighlights)
         nextId.current = Math.max(...data.posts.map((p: Post) => p.id)) + 1
-        const allFrameIds = (data.highlights || []).flatMap((h: StoryHighlight) => h.frames.map((f: StoryFrame) => f.id))
-        if (allFrameIds.length) nextStoryId.current = Math.max(...allFrameIds) + 1
+        const allIds = loadedHighlights.flatMap((h: StoryHighlight) => [h.id, ...h.frames.map((f: StoryFrame) => f.id)])
+        nextStoryId.current = allIds.length ? Math.max(...allIds) + 1 : 100
         localStorage.setItem(lsPosts, JSON.stringify(data.posts))
         localStorage.setItem(lsOrder, JSON.stringify(data.order))
         localStorage.setItem(lsProfile, JSON.stringify(data.profile || DEFAULT_PROFILE))
@@ -248,7 +248,9 @@ export default function GridPage() {
     setPosts(loadedPosts)
     setOrder(loadedOrder)
     setProfile(loadedProfile)
+    setHighlights(DEFAULT_HIGHLIGHTS)
     nextId.current = Math.max(...loadedPosts.map((p: Post) => p.id)) + 1
+    nextStoryId.current = 100
     setSyncStatus('idle')
     setReady(true)
     setTimeout(() => { isFirstLoad.current = false }, 100)
@@ -421,7 +423,7 @@ export default function GridPage() {
 
   // ─── Profile ───────────────────────────────────────────────────────────────
   function openProfileEdit() {
-    setEditingProfile({ ...profile, highlights: profile.highlights.map(h => ({ ...h })) })
+    setEditingProfile({ ...profile })
     setActivePanel('profile')
   }
 
@@ -658,10 +660,13 @@ export default function GridPage() {
           {profile.link && <div style={{ color:'#4A90D9', fontSize:13, marginTop:4 }}>🔗 {profile.link}</div>}
         </div>
         <div style={{ display:'flex', gap:12, padding:'0 4px 16px', overflowX:'auto' }}>
-          {profile.highlights.map((h,i)=>(
-            <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, flexShrink:0 }}>
-              <div style={{ width:56, height:56, borderRadius:'50%', background:h.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:h.isBB?11:22, fontWeight:h.isBB?800:400, color:'#fff', border:'2px solid #333' }}>{h.isBB?'BB':h.emoji}</div>
-              <span style={{ color:'#ddd', fontSize:11 }}>{h.label}</span>
+          {highlights.map(h=>(
+            <div key={h.id} onClick={()=>{ setActiveTab('stories'); setSelectedHighlight(h.id) }}
+              style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:5, flexShrink:0, cursor:'pointer' }}>
+              <div style={{ width:56, height:56, borderRadius:'50%', overflow:'hidden', background:h.coverImageUrl?undefined:h.coverColor, display:'flex', alignItems:'center', justifyContent:'center', fontSize: h.coverEmoji==='BB'?11:22, fontWeight:h.coverEmoji==='BB'?800:400, color:'#fff', border:'2px solid #333' }}>
+                {h.coverImageUrl ? <img src={h.coverImageUrl} style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : h.coverEmoji}
+              </div>
+              <span style={{ color:'#ddd', fontSize:11 }}>{h.name}</span>
             </div>
           ))}
         </div>
@@ -1020,19 +1025,8 @@ export default function GridPage() {
             <div><div className="fl">Following</div><input className="fi" value={editingProfile.following} onChange={e=>setEditingProfile(p=>({...p,following:e.target.value}))} /></div>
           </div>
 
-          <div style={{ marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <div className="fl" style={{ margin:0 }}>Story Highlights</div>
-              <button onClick={()=>setEditingProfile(p=>({...p,highlights:[...p.highlights,{emoji:'⭐',label:'New',bg:'#033F3B'}]}))} style={{ background:'#C5D93A', color:'#033F3B', border:'none', borderRadius:6, padding:'4px 10px', fontSize:12, fontWeight:700, cursor:'pointer' }}>+ Add</button>
-            </div>
-            {editingProfile.highlights.map((h,i)=>(
-              <div key={i} style={{ background:'#2a2a2a', borderRadius:10, padding:'10px 12px', marginBottom:8, display:'flex', gap:8, alignItems:'center' }}>
-                <input className="fi" style={{ width:50 }} value={h.emoji} onChange={e=>{ const hl=[...editingProfile.highlights]; hl[i]={...hl[i],emoji:e.target.value}; setEditingProfile(p=>({...p,highlights:hl})) }} />
-                <input className="fi" style={{ flex:1 }} value={h.label} onChange={e=>{ const hl=[...editingProfile.highlights]; hl[i]={...hl[i],label:e.target.value}; setEditingProfile(p=>({...p,highlights:hl})) }} />
-                <input type="color" value={h.bg} onChange={e=>{ const hl=[...editingProfile.highlights]; hl[i]={...hl[i],bg:e.target.value}; setEditingProfile(p=>({...p,highlights:hl})) }} style={{ width:36, height:36, border:'none', borderRadius:6, cursor:'pointer', padding:2 }} />
-                <button onClick={()=>setEditingProfile(p=>({...p,highlights:p.highlights.filter((_,idx)=>idx!==i)}))} style={{ background:'none', border:'none', color:'#e53e3e', fontSize:20, cursor:'pointer', padding:'0 4px', lineHeight:1 }}>×</button>
-              </div>
-            ))}
+          <div style={{ marginBottom:16, background:'#2a2a2a', borderRadius:10, padding:'10px 12px' }}>
+            <div style={{ color:'#888', fontSize:12 }}>💡 Edit highlight circles in the <strong style={{ color:'#C5D93A' }}>📖 Stories</strong> tab — tap any circle to manage its frames.</div>
           </div>
 
           <button className="btn-p" onClick={saveProfileEdit}>Save Profile</button>
