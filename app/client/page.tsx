@@ -133,6 +133,7 @@ export default function GridPage() {
   const profileRef = useRef<Profile>(DEFAULT_PROFILE)
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>|null>(null)
   const isFirstLoad = useRef(true)
+  const clientKeyRef = useRef<string>('default')
 
   useEffect(() => {
     const isAdmin = document.cookie.includes('bb_admin=1')
@@ -167,6 +168,7 @@ export default function GridPage() {
     const clientMatch = document.cookie.match(/bb_client=([^;]+)/)
     const previewMatch = document.cookie.match(/bb_preview_client=([^;]+)/)
     const clientKey = overrideClientId || clientMatch?.[1] || previewMatch?.[1] || 'default'
+    clientKeyRef.current = clientKey
     const syncUrl = overrideClientId ? `/api/sync?clientId=${overrideClientId}`
       : (document.cookie.match(/bb_preview_client=([^;]+)/)?.[1]
           ? `/api/sync?clientId=${document.cookie.match(/bb_preview_client=([^;]+)/)?.[1]}`
@@ -253,6 +255,7 @@ export default function GridPage() {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         console.error('Sync error:', err)
+        alert('Save failed: ' + (err.error || res.status))
         setSyncStatus('error')
         setTimeout(() => setSyncStatus('idle'), 3000)
         return
@@ -266,8 +269,9 @@ export default function GridPage() {
   }
 
   function saveLocal(p: Post[], o: number[]) {
-    localStorage.setItem('bb_posts_v4', JSON.stringify(p))
-    localStorage.setItem('bb_order_v4', JSON.stringify(o))
+    const k = clientKeyRef.current
+    localStorage.setItem(`bb_posts_${k}`, JSON.stringify(p))
+    localStorage.setItem(`bb_order_${k}`, JSON.stringify(o))
     postsRef.current = p
     orderRef.current = o
   }
