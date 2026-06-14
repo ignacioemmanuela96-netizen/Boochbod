@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createBrowser } from '@/lib/supabase/client'
 import GridClient from '@/components/GridClient'
+import SetupPage from '@/components/SetupPage'
 import { Post, Profile } from '@/lib/types'
+import { cookies } from 'next/headers'
 
 const DEFAULT_PROFILE: Profile = {
   id: 1,
@@ -45,13 +46,19 @@ const SEED_POSTS: Omit<Post, 'created_at'>[] = [
 ]
 
 export default async function Home() {
+  const cookieStore = await cookies()
+  const session = cookieStore.get('admin_session')
+  const isAdmin = session?.value === (process.env.ADMIN_PASSWORD || 'admin123')
+
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const isAdmin = !!user
+  let { data: postsData, error: postsError } = await supabase.from('posts').select('*').order('position')
+  let { data: profileData, error: profileError } = await supabase.from('profile').select('*').eq('id', 1).single()
 
-  let { data: postsData } = await supabase.from('posts').select('*').order('position')
-  let { data: profileData } = await supabase.from('profile').select('*').eq('id', 1).single()
+  // Tables don't exist yet — show setup page
+  if (postsError?.code === '42P01' || profileError?.code === '42P01') {
+    return <SetupPage isAdmin={isAdmin} />
+  }
 
   // Seed posts if empty
   if (!postsData || postsData.length === 0) {
