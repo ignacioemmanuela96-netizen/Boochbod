@@ -448,7 +448,7 @@ export default function GridPage() {
             <div style={{ display:'flex', gap:8, marginBottom:8 }}>
               <label style={{ flex:1, background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
                 {editPost.mediaType==='video'?'🎬':'📷'} Upload {editPost.mediaType==='video'?'Video':'Image'}
-                <input type="file" accept="image/*,video/*" style={{ display:'none' }} onChange={e=>handleEditFile(e,'media')} />
+                <input type="file" accept="image/*,.mp4,.mov,video/mp4,video/quicktime" style={{ display:'none' }} onChange={e=>handleEditFile(e,'media')} />
               </label>
               <label style={{ flex:1, background:'#2a2a2a', border:'1px solid #444', borderRadius:8, padding:'8px', cursor:'pointer', color:'#ccc', fontSize:12, textAlign:'center' }}>
                 🖼 Cover Image
@@ -524,8 +524,8 @@ export default function GridPage() {
               : null
             }
             <label style={{ display:'block', background:'#2a2a2a', border:'2px dashed #444', borderRadius:10, padding:'20px', cursor:'pointer', color:'#ccc', fontSize:13, textAlign:'center' }}>
-              📷 / 🎬 Click to upload image or video
-              <input type="file" accept="image/*,video/*" style={{ display:'none' }} onChange={handleNewFile} />
+              📷 / 🎬 Click to upload image or video (MP4 / MOV)
+              <input type="file" accept="image/*,.mp4,.mov,video/mp4,video/quicktime" style={{ display:'none' }} onChange={handleNewFile} />
             </label>
           </div>
 
