@@ -92,6 +92,8 @@ export default function GridPage() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
   const [isAdminPreview, setIsAdminPreview] = useState(false)
+  const [previewClientId, setPreviewClientId] = useState<string|null>(null)
+  const previewClientIdRef = useRef<string|null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [order, setOrder] = useState<number[]>([])
   const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE)
@@ -117,13 +119,16 @@ export default function GridPage() {
   useEffect(() => {
     const isAdmin = document.cookie.includes('bb_admin=1')
     const isClient = document.cookie.match(/bb_client=[^;]+/)
-    const isPreview = document.cookie.match(/bb_preview_client=[^;]+/)
-    if (!isAdmin && !isClient && !isPreview) { router.replace('/'); return }
-    if (isAdmin) setIsAdminPreview(true)
-    loadData()
+    const previewMatch = document.cookie.match(/bb_preview_client=([^;]+)/)
+    if (!isAdmin && !isClient && !previewMatch) { router.replace('/'); return }
+    if (isAdmin || previewMatch) setIsAdminPreview(true)
+    // Store preview client ID in state so sync calls can pass it
+    if (previewMatch?.[1]) setPreviewClientId(previewMatch[1])
+    loadData(previewMatch?.[1])
   }, [])
 
   // Keep refs in sync for use inside sortable callback
+  useEffect(() => { previewClientIdRef.current = previewClientId }, [previewClientId])
   useEffect(() => { orderRef.current = order }, [order])
   useEffect(() => { postsRef.current = posts }, [posts])
   useEffect(() => { profileRef.current = profile }, [profile])
@@ -139,18 +144,18 @@ export default function GridPage() {
   }, [posts, order, profile, ready])
 
   // ─── Load: cloud first, localStorage fallback ──────────────────────────────
-  async function loadData() {
+  async function loadData(overrideClientId?: string) {
     setSyncStatus('loading')
-    // Determine client key for localStorage namespacing
     const clientMatch = document.cookie.match(/bb_client=([^;]+)/)
     const previewMatch = document.cookie.match(/bb_preview_client=([^;]+)/)
-    const clientKey = clientMatch?.[1] || previewMatch?.[1] || 'default'
+    const clientKey = overrideClientId || clientMatch?.[1] || previewMatch?.[1] || 'default'
+    const syncUrl = overrideClientId ? `/api/sync?clientId=${overrideClientId}` : '/api/sync'
     const lsPosts = `bb_posts_${clientKey}`
     const lsOrder = `bb_order_${clientKey}`
     const lsProfile = `bb_profile_${clientKey}`
 
     try {
-      const res = await fetch('/api/sync')
+      const res = await fetch(syncUrl)
       const { data } = await res.json()
       if (data?.posts && data?.order) {
         const migratedPosts = data.posts.map((p: Post) => ({ ...p, approval: (p.approval || 'pending') as Post['approval'] }))
@@ -185,7 +190,9 @@ export default function GridPage() {
   }
 
   async function loadBackups() {
-    const res = await fetch('/api/sync?backups=1')
+    const pid = previewClientIdRef.current
+    const url = pid ? `/api/sync?backups=1&clientId=${pid}` : '/api/sync?backups=1'
+    const res = await fetch(url)
     const { backups: b } = await res.json()
     setBackups(b || [])
     setShowBackups(true)
@@ -209,14 +216,23 @@ export default function GridPage() {
   async function saveToCloud(p?: Post[], o?: number[], pr?: Profile) {
     const savePosts = p || postsRef.current
     const saveOrder = o || orderRef.current
-    const saveProfile = pr || profile
+    const saveProfile = pr || profileRef.current
     setSyncStatus('saving')
+    const pid = previewClientIdRef.current
+    const syncUrl = pid ? `/api/sync?clientId=${pid}` : '/api/sync'
     try {
-      await fetch('/api/sync', {
+      const res = await fetch(syncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ posts: savePosts, order: saveOrder, profile: saveProfile }),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        console.error('Sync error:', err)
+        setSyncStatus('error')
+        setTimeout(() => setSyncStatus('idle'), 3000)
+        return
+      }
       setSyncStatus('saved')
       setTimeout(() => setSyncStatus('idle'), 2500)
     } catch {
