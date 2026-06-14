@@ -18,7 +18,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       body,
       request: req,
       onBeforeGenerateToken: async (pathname) => ({
-        allowedContentTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'video/mp4', 'video/quicktime'],
+        allowedContentTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif', 'video/mp4', 'video/quicktime', 'video/mov', 'video/x-m4v', 'video/mpeg'],
         tokenPayload: JSON.stringify({ pathname }),
       }),
       onUploadCompleted: async () => {},

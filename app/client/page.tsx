@@ -78,11 +78,29 @@ const STATUS_COLORS: Record<string,string> = { 'Idea':'#d97706', 'In Progress':'
 
 // ─── Upload file directly to Vercel Blob (no size limit) ─────────────────────
 async function uploadFile(file: File, key: string): Promise<string> {
-  const ext = file.name.split('.').pop() || ''
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
   const pathname = `media/${key}.${ext}`
-  const blob = await upload(pathname, file, {
+
+  // Fix missing/incorrect MIME types that some browsers report for MOV files
+  const typeMap: Record<string, string> = {
+    mov: 'video/quicktime',
+    mp4: 'video/mp4',
+    m4v: 'video/x-m4v',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  }
+  const contentType = file.type || typeMap[ext] || 'application/octet-stream'
+  const fixedFile = contentType !== file.type ? new File([file], file.name, { type: contentType }) : file
+
+  const blob = await upload(pathname, fixedFile, {
     access: 'public',
     handleUploadUrl: '/api/upload',
+    contentType,
   })
   return blob.url
 }
