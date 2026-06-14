@@ -167,7 +167,10 @@ export default function GridPage() {
     const clientMatch = document.cookie.match(/bb_client=([^;]+)/)
     const previewMatch = document.cookie.match(/bb_preview_client=([^;]+)/)
     const clientKey = overrideClientId || clientMatch?.[1] || previewMatch?.[1] || 'default'
-    const syncUrl = overrideClientId ? `/api/sync?clientId=${overrideClientId}` : '/api/sync'
+    const syncUrl = overrideClientId ? `/api/sync?clientId=${overrideClientId}`
+      : (document.cookie.match(/bb_preview_client=([^;]+)/)?.[1]
+          ? `/api/sync?clientId=${document.cookie.match(/bb_preview_client=([^;]+)/)?.[1]}`
+          : '/api/sync')
     const lsPosts = `bb_posts_${clientKey}`
     const lsOrder = `bb_order_${clientKey}`
     const lsProfile = `bb_profile_${clientKey}`
@@ -207,9 +210,13 @@ export default function GridPage() {
     setTimeout(() => { isFirstLoad.current = false }, 100)
   }
 
+  function getSyncUrl(base: string) {
+    const pid = document.cookie.match(/bb_preview_client=([^;]+)/)?.[1] || previewClientIdRef.current
+    return pid ? `${base}${base.includes('?') ? '&' : '?'}clientId=${pid}` : base
+  }
+
   async function loadBackups() {
-    const pid = previewClientIdRef.current
-    const url = pid ? `/api/sync?backups=1&clientId=${pid}` : '/api/sync?backups=1'
+    const url = getSyncUrl('/api/sync?backups=1')
     const res = await fetch(url)
     const { backups: b } = await res.json()
     setBackups(b || [])
@@ -236,8 +243,7 @@ export default function GridPage() {
     const saveOrder = o || orderRef.current
     const saveProfile = pr || profileRef.current
     setSyncStatus('saving')
-    const pid = previewClientIdRef.current
-    const syncUrl = pid ? `/api/sync?clientId=${pid}` : '/api/sync'
+    const syncUrl = getSyncUrl('/api/sync')
     try {
       const res = await fetch(syncUrl, {
         method: 'POST',
